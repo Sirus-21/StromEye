@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StormEye AI — Tropical Cyclone Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<style>
+  :root{
+    --bg: #080B1F;
+    --bg-elev: #10163A;
+    --surface: #171E4C;
+    --surface-2: #1F2A5E;
+    --cyan: #4CC9F0;
+    --cyan-dim: #2E8FB8;
+    --coral: #FF7A59;
+    --text: #F1F4FF;
+    --muted: #93A0CC;
+    --line: rgba(140,158,220,0.18);
+    --radius-sm: 10px;
+    --radius-md: 16px;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    line-height:1.6;
+    overflow-x:hidden;
+  }
+  h1,h2,h3, .display{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    letter-spacing:-0.01em;
+  }
+  .mono{ font-family:'IBM Plex Mono', monospace; }
+
+  a{color:inherit;}
+  img,svg{display:block; max-width:100%;}
+
+  .wrap{
+    max-width:1160px;
+    margin:0 auto;
+    padding:0 28px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important;}
+  }
+
+  /* background field */
+  .stars{
+    position:fixed; inset:0; z-index:-2;
+    background:
+      radial-gradient(1px 1px at 20px 60px, rgba(255,255,255,0.35), transparent),
+      radial-gradient(1px 1px at 300px 150px, rgba(255,255,255,0.25), transparent),
+      radial-gradient(1.5px 1.5px at 500px 40px, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1px 1px at 700px 300px, rgba(255,255,255,0.2), transparent),
+      radial-gradient(1.5px 1.5px at 900px 200px, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1px 1px at 1100px 100px, rgba(255,255,255,0.25), transparent);
+    background-repeat: repeat;
+    background-size: 1200px 700px;
+    opacity:0.5;
+  }
+  .glow-field{
+    position:fixed; inset:0; z-index:-1;
+    background: radial-gradient(ellipse 800px 500px at 85% -5%, rgba(76,201,240,0.16), transparent 60%),
+                radial-gradient(ellipse 600px 400px at 5% 40%, rgba(255,122,89,0.08), transparent 60%);
+  }
+
+  /* nav */
+  nav{
+    position:sticky; top:0; z-index:50;
+    background:rgba(8,11,31,0.75);
+    backdrop-filter: blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  nav .wrap{
+    display:flex; align-items:center; justify-content:space-between;
+    height:64px;
+  }
+  .brand{
+    display:flex; align-items:center; gap:10px;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700; font-size:1.05rem;
+  }
+  .brand-mark{
+    width:26px; height:26px; border-radius:50%;
+    background: conic-gradient(from 90deg, var(--cyan), var(--surface-2) 40%, var(--cyan));
+    position:relative;
+  }
+  .brand-mark::after{
+    content:''; position:absolute; inset:8px; border-radius:50%; background:var(--bg);
+  }
+  nav .links{ display:flex; gap:28px; font-size:0.92rem; color:var(--muted);}
+  nav .links a{ text-decoration:none; transition:color 0.2s; }
+  nav .links a:hover{ color:var(--cyan); }
+  @media (max-width:720px){ nav .links{display:none;} }
+  .btn-sm{ padding:9px 18px; font-size:0.85rem; }
+
+  /* hero */
+  .hero{
+    padding:88px 0 60px;
+    display:grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap:40px;
+    align-items:center;
+  }
+  @media (max-width:900px){ .hero{ grid-template-columns:1fr; padding-top:56px; } }
+
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-size:0.82rem; color:var(--cyan);
+    background:rgba(76,201,240,0.1);
+    border:1px solid rgba(76,201,240,0.3);
+    padding:6px 14px; border-radius:100px;
+    margin-bottom:22px;
+  }
+  .eyebrow .dot{ width:6px; height:6px; border-radius:50%; background:var(--cyan); animation:pulse 2s infinite ease-in-out; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+  .hero-copy{
+    animation: rise 0.9s cubic-bezier(.16,.9,.35,1) both;
+  }
+  @keyframes rise{
+    from{ opacity:0; transform:translateY(18px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+
+  .hero h1{
+    font-size:clamp(2.3rem, 4.6vw, 3.6rem);
+    line-height:1.06;
+    margin-bottom:20px;
+  }
+  .hero h1 .accent{ color:var(--cyan); }
+  .hero p.lede{
+    color:var(--muted);
+    font-size:1.08rem;
+    max-width:52ch;
+    margin-bottom:30px;
+  }
+  .hero-cta{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:40px; }
+  .btn{
+    font-family:'IBM Plex Sans', sans-serif;
+    font-weight:600; font-size:0.95rem;
+    padding:13px 24px; border-radius:100px;
+    border:1px solid transparent;
+    cursor:pointer;
+    display:inline-flex; align-items:center; gap:8px;
+    text-decoration:none;
+    transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+  }
+  .btn-primary{
+    background: var(--cyan); color:#04121A;
+    box-shadow:0 0 0 rgba(76,201,240,0.4);
+  }
+  .btn-primary:hover{ transform:translateY(-2px); box-shadow:0 8px 24px rgba(76,201,240,0.35); }
+  .btn-ghost{
+    background:transparent; border-color:var(--line); color:var(--text);
+  }
+  .btn-ghost:hover{ border-color:var(--cyan); color:var(--cyan); }
+
+  .hero-stats{
+    display:flex; gap:32px; flex-wrap:wrap;
+    padding-top:26px; border-top:1px solid var(--line);
+  }
+  .stat b{
+    display:block; font-family:'Space Grotesk',sans-serif; font-size:1.5rem; color:var(--cyan);
+  }
+  .stat span{ color:var(--muted); font-size:0.82rem; }
+
+  /* spiral graphic */
+  .spiral-stage{
+    position:relative;
+    aspect-ratio:1/1;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .spiral-stage svg{ animation: spin 34s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .spiral-core{
+    position:absolute;
+    width:16%; height:16%;
+    border-radius:50%;
+    background:radial-gradient(circle, #fff, var(--cyan) 60%, transparent 75%);
+    box-shadow:0 0 40px 8px rgba(76,201,240,0.55);
+  }
+  .spiral-ring-label{
+    position:absolute; top:6%; right:2%;
+    font-family:'IBM Plex Mono', monospace; font-size:0.72rem; color:var(--muted);
+    text-align:right;
+  }
+  .spiral-ring-label b{ color:var(--cyan); display:block; font-size:0.95rem; }
+
+  /* section shell */
+  section{ padding:70px 0; }
+  .section-head{ max-width:640px; margin-bottom:42px; }
+  .section-head .kicker{ color:var(--coral); font-size:0.88rem; font-weight:600; margin-bottom:10px; }
+  .section-head h2{ font-size:clamp(1.6rem,3vw,2.2rem); margin-bottom:12px; }
+  .section-head p{ color:var(--muted); }
+
+  hr.divider{ border:none; border-top:1px solid var(--line); }
+
+  /* data sources */
+  .data-grid{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(210px,1fr));
+    gap:16px;
+  }
+  .data-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius-md);
+    padding:22px;
+    cursor:pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .data-card:hover, .data-card.active{
+    border-color:var(--cyan);
+    background:var(--surface-2);
+  }
+  .data-card .tag{
+    display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:0.72rem;
+    color:var(--cyan); background:rgba(76,201,240,0.1); padding:4px 10px; border-radius:6px;
+    margin-bottom:14px;
+  }
+  .data-card h3{ font-size:1.05rem; margin-bottom:8px; font-weight:600; }
+  .data-card p{ color:var(--muted); font-size:0.9rem; }
+
+  .data-detail{
+    margin-top:22px;
+    background:var(--bg-elev);
+    border:1px solid var(--line);
+    border-radius:var(--radius-md);
+    padding:26px 28px;
+    display:none;
+  }
+  .data-detail.show{ display:block; }
+  .data-detail h4{ color:var(--cyan); font-size:0.95rem; margin-bottom:8px; }
+  .data-detail p{ color:var(--muted); font-size:0.94rem; }
+
+  /* pipeline */
+  .pipeline{
+    display:flex; flex-direction:column; gap:0;
+  }
+  .stage{
+    display:grid; grid-template-columns:60px 1fr;
+    gap:20px;
+    padding:22px 0;
+    position:relative;
+  }
+  .stage:not(:last-child)::after{
+    content:''; position:absolute; left:29px; top:56px; bottom:-6px;
+    width:2px; background:var(--line);
+  }
+  .stage-num{
+    width:44px; height:44px; border-radius:50%;
+    background:var(--surface); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono',monospace; font-size:0.85rem; color:var(--cyan);
+    z-index:1;
+  }
+  .stage-body h3{ font-size:1.08rem; margin-bottom:6px; }
+  .stage-body p{ color:var(--muted); font-size:0.94rem; max-width:62ch; }
+  .stage-body .chips{ margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
+  .chip{
+    font-family:'IBM Plex Mono',monospace; font-size:0.72rem; color:var(--muted);
+    border:1px solid var(--line); padding:3px 10px; border-radius:100px;
+  }
+
+  /* classification */
+  .cat-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; margin-bottom:26px; }
+  @media (max-width:800px){ .cat-grid{ grid-template-columns:repeat(4,1fr); } }
+  @media (max-width:480px){ .cat-grid{ grid-template-columns:repeat(3,1fr); } }
+  .cat-btn{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius-sm);
+    padding:14px 6px;
+    text-align:center;
+    cursor:pointer;
+    color:var(--muted);
+    font-family:'IBM Plex Mono',monospace; font-size:0.78rem;
+    transition: all 0.2s ease;
+  }
+  .cat-btn b{ display:block; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:1rem; margin-bottom:2px; }
+  .cat-btn.active{ border-color:var(--intensity, var(--cyan)); background:var(--surface-2); color:var(--text); box-shadow:0 0 0 1px var(--intensity, var(--cyan)) inset; }
+
+  .cat-panel{
+    background:var(--bg-elev);
+    border:1px solid var(--line);
+    border-radius:var(--radius-md);
+    padding:28px;
+    display:grid;
+    grid-template-columns:auto 1fr;
+    gap:24px;
+    align-items:center;
+  }
+  @media (max-width:640px){ .cat-panel{ grid-template-columns:1fr; } }
+  .cat-panel .swatch{
+    width:64px; height:64px; border-radius:50%;
+    background:var(--intensity, var(--cyan));
+    box-shadow:0 0 30px var(--intensity, var(--cyan));
+  }
+  .cat-panel h4{ font-size:1.2rem; margin-bottom:6px; }
+  .cat-panel .wind{ color:var(--cyan); font-family:'IBM Plex Mono',monospace; font-size:0.88rem; margin-bottom:8px; }
+  .cat-panel p{ color:var(--muted); font-size:0.92rem; }
+
+  /* dashboard mock */
+  .dash{
+    display:grid; grid-template-columns:1.3fr 1fr;
+    gap:18px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius-md);
+    padding:18px;
+  }
+  @media (max-width:800px){ .dash{ grid-template-columns:1fr; } }
+  .dash-map{
+    position:relative;
+    border-radius:var(--radius-sm);
+    overflow:hidden;
+    min-height:320px;
+    background:
+      radial-gradient(circle at 60% 45%, rgba(76,201,240,0.5), transparent 40%),
+      radial-gradient(circle at 60% 45%, rgba(255,255,255,0.25), transparent 18%),
+      linear-gradient(160deg, #0B1740, #0A0E27 70%);
+  }
+  .dash-map .cone{
+    position:absolute; left:55%; top:40%;
+    width:220px; height:220px;
+    background:conic-gradient(from 210deg at 0% 50%, rgba(255,122,89,0.35), transparent 40deg);
+    transform:rotate(0deg);
+  }
+  .dash-map .swirl{
+    position:absolute; left:60%; top:45%; width:130px; height:130px;
+    transform:translate(-50%,-50%);
+    animation: spin 22s linear infinite;
+    opacity:0.9;
+  }
+  .dash-map .tag-live{
+    position:absolute; top:14px; left:14px;
+    font-family:'IBM Plex Mono',monospace; font-size:0.72rem;
+    background:rgba(0,0,0,0.4); border:1px solid var(--line);
+    padding:5px 10px; border-radius:100px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .tag-live .dot{ width:6px; height:6px; border-radius:50%; background:var(--coral); animation:pulse 1.4s infinite; }
+
+  .dash-side{ display:flex; flex-direction:column; gap:14px; }
+  .metric{
+    background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-sm);
+    padding:16px;
+  }
+  .metric .row{ display:flex; justify-content:space-between; font-size:0.85rem; color:var(--muted); margin-bottom:8px; }
+  .metric .row b{ color:var(--text); font-family:'Space Grotesk',sans-serif; }
+  .bar{ height:7px; border-radius:100px; background:var(--surface-2); overflow:hidden; }
+  .bar i{ display:block; height:100%; background:linear-gradient(90deg, var(--cyan), var(--coral)); }
+
+  /* tech stack */
+  .stack-row{ display:flex; flex-wrap:wrap; gap:10px; }
+  .pill{
+    font-family:'IBM Plex Mono',monospace; font-size:0.8rem;
+    border:1px solid var(--line); color:var(--muted);
+    padding:8px 16px; border-radius:100px;
+  }
+
+  footer{
+    border-top:1px solid var(--line);
+    padding:36px 0 60px;
+    color:var(--muted); font-size:0.86rem;
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;
+  }
+
+  /* ================= LIVE MAP (Zoom Earth-style) ================= */
+  #liveMapOverlay{
+    position:fixed; inset:0; z-index:2000;
+    display:none;
+    background:#060814;
+  }
+  #liveMapOverlay.open{ display:block; }
+  #map{ position:absolute; inset:0; z-index:0; background:#060814; }
+  .leaflet-container{ background:#060814; font-family:'IBM Plex Sans', sans-serif; }
+  .leaflet-control-zoom{ display:none; }
+  .leaflet-popup-content-wrapper{ background:var(--surface); color:var(--text); border:1px solid var(--line); border-radius:var(--radius-sm); }
+  .leaflet-popup-tip{ background:var(--surface); }
+  .leaflet-popup-content{ margin:14px 16px; font-size:0.86rem; }
+  .leaflet-popup-content b{ font-family:'Space Grotesk',sans-serif; }
+
+  .map-topbar{
+    position:absolute; top:16px; left:16px; right:16px; z-index:1000;
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    pointer-events:none;
+  }
+  .map-topbar > *{ pointer-events:auto; }
+  .map-brand{
+    display:flex; align-items:center; gap:10px;
+    font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:1rem;
+    background:rgba(23,30,76,0.85); backdrop-filter:blur(10px);
+    border:1px solid var(--line); border-radius:100px;
+    padding:10px 18px 10px 12px;
+  }
+  .map-brand-mark{
+    width:22px; height:22px; border-radius:50%;
+    background:conic-gradient(from 90deg, var(--cyan), var(--surface-2) 40%, var(--cyan));
+    position:relative; flex:none;
+  }
+  .map-brand-mark::after{ content:''; position:absolute; inset:6px; border-radius:50%; background:#060814; }
+  .close-map{
+    font-size:0.78rem; color:var(--muted); font-weight:500; margin-left:10px; padding-left:12px;
+    border:none; border-left:1px solid var(--line); background:none; cursor:pointer; font-family:inherit;
+  }
+  .close-map:hover{ color:var(--coral); }
+
+  .search-box{
+    flex:1; max-width:340px;
+    display:flex; align-items:center; gap:10px;
+    background:rgba(23,30,76,0.85); backdrop-filter:blur(10px);
+    border:1px solid var(--line); border-radius:100px;
+    padding:10px 16px; position:relative;
+  }
+  .search-box input{ flex:1; background:none; border:none; outline:none; color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:0.88rem; }
+  .search-box input::placeholder{ color:var(--muted); }
+  .search-results{
+    position:absolute; top:52px; left:0; right:0;
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm);
+    overflow:hidden; display:none;
+  }
+  .search-results.show{ display:block; }
+  .search-results div{ padding:10px 16px; font-size:0.86rem; cursor:pointer; border-bottom:1px solid var(--line); }
+  .search-results div:last-child{ border-bottom:none; }
+  .search-results div:hover{ background:var(--surface-2); color:var(--cyan); }
+  @media (max-width:760px){ .search-box{ display:none; } }
+
+  .layers-panel{
+    position:absolute; top:76px; left:16px; z-index:1000;
+    background:rgba(23,30,76,0.9); backdrop-filter:blur(10px);
+    border:1px solid var(--line); border-radius:var(--radius-md);
+    width:225px; padding:14px;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+  .layers-panel h4{ font-size:0.78rem; color:var(--muted); font-weight:500; margin-bottom:10px; }
+  .layer-row{ display:flex; align-items:center; justify-content:space-between; padding:8px 4px; font-size:0.86rem; }
+  .layer-row .lbl{ display:flex; align-items:center; gap:10px; }
+  .layer-row .swatch{ width:9px; height:9px; border-radius:50%; flex:none; }
+  .lyr-toggle{
+    width:36px; height:20px; border-radius:100px;
+    background:var(--surface-2); border:1px solid var(--line);
+    position:relative; flex:none; transition:background 0.2s; cursor:pointer;
+  }
+  .lyr-toggle::after{
+    content:''; position:absolute; top:1px; left:1px; width:16px; height:16px; border-radius:50%;
+    background:var(--muted); transition:transform 0.2s ease, background 0.2s;
+  }
+  .lyr-toggle.on{ background:rgba(76,201,240,0.25); border-color:var(--cyan); }
+  .lyr-toggle.on::after{ transform:translateX(16px); background:var(--cyan); }
+
+  .panel-collapse{
+    position:absolute; top:76px; left:16px; z-index:999;
+    width:40px; height:40px; border-radius:50%;
+    background:var(--surface); border:1px solid var(--line); color:var(--text);
+    display:none; align-items:center; justify-content:center;
+  }
+  @media (max-width:640px){
+    .layers-panel{ transform:translateX(-260px); opacity:0; pointer-events:none; }
+    .layers-panel.open{ transform:translateX(0); opacity:1; pointer-events:auto; }
+    .panel-collapse{ display:flex; }
+  }
+
+  .storms-panel{
+    position:absolute; top:76px; right:16px; bottom:76px; z-index:1000;
+    width:270px;
+    background:rgba(23,30,76,0.9); backdrop-filter:blur(10px);
+    border:1px solid var(--line); border-radius:var(--radius-md);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .storms-panel .head{ padding:16px 16px 12px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; }
+  .storms-panel .head h3{ font-size:0.95rem; }
+  .storms-panel .head .count{
+    font-family:'IBM Plex Mono',monospace; font-size:0.72rem; color:var(--cyan);
+    background:rgba(76,201,240,0.12); padding:3px 9px; border-radius:100px;
+  }
+  .storms-list{ overflow-y:auto; padding:8px; }
+  .storm-card{ padding:12px; border-radius:var(--radius-sm); cursor:pointer; border:1px solid transparent; margin-bottom:4px; transition: background 0.15s, border-color 0.15s; }
+  .storm-card:hover{ background:var(--surface-2); }
+  .storm-card.active{ background:var(--surface-2); border-color:var(--cyan); }
+  .storm-card .top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+  .storm-card .name{ font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:0.92rem; }
+  .storm-card .cat-tag{ font-family:'IBM Plex Mono',monospace; font-size:0.68rem; padding:2px 8px; border-radius:100px; color:#04121A; font-weight:600; }
+  .storm-card .meta{ color:var(--muted); font-size:0.78rem; }
+  @media (max-width:900px){ .storms-panel{ width:230px; } }
+  @media (max-width:640px){ .storms-panel{ left:16px; right:16px; width:auto; top:auto; bottom:76px; height:145px; } }
+
+  .zoom-ctl{
+    position:absolute; bottom:96px; left:16px; z-index:1000;
+    display:flex; flex-direction:column;
+    background:rgba(23,30,76,0.9); border:1px solid var(--line); border-radius:var(--radius-sm);
+    overflow:hidden;
+  }
+  .zoom-ctl button{ width:38px; height:38px; background:none; border:none; color:var(--text); font-size:1.1rem; display:flex; align-items:center; justify-content:center; }
+  .zoom-ctl button:first-child{ border-bottom:1px solid var(--line); }
+  .zoom-ctl button:hover{ color:var(--cyan); }
+
+  .timeline-bar{
+    position:absolute; left:16px; right:16px; bottom:16px; z-index:1000;
+    background:rgba(23,30,76,0.9); backdrop-filter:blur(10px);
+    border:1px solid var(--line); border-radius:100px;
+    padding:10px 20px; display:flex; align-items:center; gap:16px;
+  }
+  .play-btn{ width:34px; height:34px; border-radius:50%; flex:none; background:var(--cyan); border:none; color:#04121A; display:flex; align-items:center; justify-content:center; font-size:0.9rem; }
+  .timeline-track{ flex:1; height:4px; border-radius:100px; background:var(--surface-2); position:relative; cursor:pointer; }
+  .timeline-fill{ position:absolute; left:0; top:0; bottom:0; border-radius:100px; background:linear-gradient(90deg, var(--cyan), var(--coral)); width:70%; }
+  .timestamp{ font-family:'IBM Plex Mono',monospace; font-size:0.78rem; color:var(--cyan); flex:none; min-width:120px; text-align:right; }
+  @media (max-width:640px){ .timestamp{ display:none; } }
+
+  .legend{
+    position:absolute; bottom:76px; right:16px; z-index:999;
+    background:rgba(23,30,76,0.9); border:1px solid var(--line); border-radius:var(--radius-sm);
+    padding:10px 14px; display:flex; gap:10px; font-size:0.7rem; color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;
+  }
+  @media (max-width:900px){ .legend{ display:none; } }
+  .legend span{ display:flex; align-items:center; gap:5px; }
+  .legend i{ width:8px; height:8px; border-radius:50%; display:inline-block; }
+
+  .storm-marker{ position:relative; width:34px; height:34px; }
+  .storm-marker .pulse{ position:absolute; inset:0; border-radius:50%; animation: markerPulse 2.2s infinite ease-out; }
+  @keyframes markerPulse{
+    0%{ box-shadow:0 0 0 0 var(--m-color, var(--cyan)); }
+    70%{ box-shadow:0 0 0 14px transparent; }
+    100%{ box-shadow:0 0 0 0 transparent; }
+  }
+  .storm-marker .core{ position:absolute; inset:9px; border-radius:50%; background:var(--m-color, var(--cyan)); box-shadow:0 0 14px 3px var(--m-color, var(--cyan)); }
+  .storm-marker svg{ position:absolute; inset:0; animation:mapspin 16s linear infinite; }
+  @keyframes mapspin{ to{ transform:rotate(360deg); } }
+
+  .map-toast{
+    position:absolute; bottom:96px; left:50%; transform:translateX(-50%) translateY(10px);
+    background:var(--surface); border:1px solid var(--line); border-radius:100px;
+    padding:9px 18px; font-size:0.8rem; color:var(--muted); z-index:1200;
+    opacity:0; pointer-events:none; transition:opacity 0.2s, transform 0.2s;
+  }
+  .map-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="stars"></div>
+<div class="glow-field"></div>
+
+<nav>
+  <div class="wrap">
+    <div class="brand"><span class="brand-mark"></span> StormEye AI</div>
+    <div class="links">
+      <a href="#data">Data</a>
+      <a href="#pipeline">Pipeline</a>
+      <a href="#classify">Classification</a>
+      <a href="#dashboard">Dashboard</a>
+      <a href="#stack">Stack</a>
+    </div>
+    <button class="btn btn-primary btn-sm" id="openMapBtn" type="button">Live map</button>
+  </div>
+</nav>
+
+<header class="hero wrap">
+  <div class="hero-copy">
+    <div class="eyebrow"><span class="dot"></span> multi-source satellite ML</div>
+    <h1>Reading cyclones before they<br> read the coastline<span class="accent">.</span></h1>
+    <p class="lede">An AI/ML pipeline that fuses infrared, microwave, and water-vapor satellite feeds to spot a tropical cyclone forming, tell you what category it's headed toward, and forecast where it goes next — hours before the models everyone's used to catch up.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="#pipeline">See how it works</a>
+      <button class="btn btn-ghost" id="openMapBtnHero" type="button">Open live map</button>
+    </div>
+    <div class="hero-stats">
+      <div class="stat"><b>5</b><span>satellite data sources fused</span></div>
+      <div class="stat"><b>3</b><span>tasks: detect, classify, predict</span></div>
+      <div class="stat"><b>~6h</b><span>target early-warning lead time</span></div>
+    </div>
+  </div>
+
+  <div class="spiral-stage">
+    <div class="spiral-ring-label"><b>INSAT-3D · IR1</b>eye temp −78°C</div>
+    <svg viewBox="0 0 400 400" width="380" height="380">
+      <defs>
+        <path id="arm1" d="M200,200 C260,170 330,190 350,260 C365,315 320,360 260,350" />
+        <path id="arm2" d="M200,200 C150,150 90,160 60,220 C35,270 70,320 130,320" />
+        <path id="arm3" d="M200,200 C230,250 220,320 160,350 C110,375 55,340 50,285" />
+      </defs>
+      <circle cx="200" cy="200" r="185" fill="none" stroke="rgba(76,201,240,0.12)" stroke-width="1"/>
+      <circle cx="200" cy="200" r="140" fill="none" stroke="rgba(76,201,240,0.1)" stroke-width="1"/>
+      <use href="#arm1" fill="none" stroke="#4CC9F0" stroke-width="26" stroke-linecap="round" opacity="0.85"/>
+      <use href="#arm2" fill="none" stroke="#2E8FB8" stroke-width="20" stroke-linecap="round" opacity="0.7"/>
+      <use href="#arm3" fill="none" stroke="#FF7A59" stroke-width="14" stroke-linecap="round" opacity="0.55"/>
+    </svg>
+    <div class="spiral-core"></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <hr class="divider">
+
+  <section id="data">
+    <div class="section-head">
+      <div class="kicker">Inputs</div>
+      <h2>One satellite lies to you sometimes. Five don't.</h2>
+      <p>No single sensor sees the whole storm. The model fuses these feeds so gaps in one get filled by another — tap a source to see what it actually contributes.</p>
+    </div>
+
+    <div class="data-grid" id="dataGrid">
+      <div class="data-card active" data-i="0"><span class="tag">IR</span><h3>Infrared brightness temp</h3><p>Cloud-top temperature, day or night. The core signal for spotting an eye.</p></div>
+      <div class="data-card" data-i="1"><span class="tag">WV</span><h3>Water vapor channel</h3><p>Mid-to-upper atmosphere moisture — flags the environment a storm can feed on.</p></div>
+      <div class="data-card" data-i="2"><span class="tag">MW</span><h3>Passive microwave</h3><p>Sees through the cloud shield to the storm's actual structure underneath.</p></div>
+      <div class="data-card" data-i="3"><span class="tag">SCAT</span><h3>Scatterometer winds</h3><p>Ocean-surface wind vectors from radar backscatter — ground-truth for intensity.</p></div>
+      <div class="data-card" data-i="4"><span class="tag">VIS</span><h3>Visible imagery</h3><p>Daytime texture and banding detail that sharpens the eye-detection step.</p></div>
+    </div>
+
+    <div class="data-detail show" id="dataDetail">
+      <h4>Why infrared carries the most weight</h4>
+      <p>It's the only channel available at every timestep, day and night, on a consistent schedule — so it anchors the time series the model learns from. Every other source corrects it in a different way: microwave reveals the real eyewall when cloud tops hide it, water vapor flags whether the storm has fuel, and scatterometer winds keep the intensity estimate honest.</p>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <section id="pipeline">
+    <div class="section-head">
+      <div class="kicker">Architecture</div>
+      <h2>From raw swath to storm warning, six stages</h2>
+      <p>Each stage hands off a cleaner, more structured version of the storm to the next.</p>
+    </div>
+
+    <div class="pipeline">
+      <div class="stage">
+        <div class="stage-num">01</div>
+        <div class="stage-body">
+          <h3>Ingest & co-register</h3>
+          <p>Pull concurrent passes from each satellite source and align them to a common grid and timestamp, so every pixel across sensors refers to the same patch of ocean.</p>
+          <div class="chips"><span class="chip">geolocation matching</span><span class="chip">temporal alignment</span></div>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="stage-num">02</div>
+        <div class="stage-body">
+          <h3>Clean & normalize</h3>
+          <p>Mask stray clouds and sensor noise, correct calibration drift between satellites, and normalize brightness temperature and wind fields to a shared scale.</p>
+          <div class="chips"><span class="chip">cloud masking</span><span class="chip">calibration correction</span></div>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="stage-num">03</div>
+        <div class="stage-body">
+          <h3>Detect candidate systems</h3>
+          <p>A CNN scans each frame for the spiral banding and closed circulation that separate an organizing cyclone from ordinary tropical convection.</p>
+          <div class="chips"><span class="chip">CNN feature extraction</span><span class="chip">candidate flagging</span></div>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="stage-num">04</div>
+        <div class="stage-body">
+          <h3>Classify intensity</h3>
+          <p>Structural features — eye clarity, symmetry, convective banding — map onto a Dvorak-informed intensity estimate and Saffir-Simpson category.</p>
+          <div class="chips"><span class="chip">Dvorak-informed scoring</span><span class="chip">category assignment</span></div>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="stage-num">05</div>
+        <div class="stage-body">
+          <h3>Model the sequence</h3>
+          <p>A ConvLSTM / temporal transformer reads the last 24–48 hours of frames to learn how this storm's structure has been evolving.</p>
+          <div class="chips"><span class="chip">ConvLSTM</span><span class="chip">temporal attention</span></div>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="stage-num">06</div>
+        <div class="stage-body">
+          <h3>Predict track & intensity</h3>
+          <p>Outputs a forecast cone for the storm's path and a probability curve for intensification over the next 6–72 hours.</p>
+          <div class="chips"><span class="chip">track forecast</span><span class="chip">intensification probability</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <section id="classify">
+    <div class="section-head">
+      <div class="kicker">Output — classification</div>
+      <h2>Where the model places a storm on the scale</h2>
+      <p>Tap a category to see the wind range and what the model looks for at that stage.</p>
+    </div>
+
+    <div class="cat-grid" id="catGrid"></div>
+    <div class="cat-panel" id="catPanel"></div>
+  </section>
+
+  <hr class="divider">
+
+  <section id="dashboard">
+    <div class="section-head">
+      <div class="kicker">Output — prediction</div>
+      <h2>What a live read looks like</h2>
+      <p>A mock of the monitoring view: current position, forecast cone, and model confidence, updated every pass.</p>
+    </div>
+
+    <div class="dash">
+      <div class="dash-map">
+        <div class="tag-live"><span class="dot"></span> live pass · IR1 + MW composite</div>
+        <div class="cone"></div>
+        <svg class="swirl" viewBox="0 0 200 200">
+          <path d="M100,100 C140,85 175,100 180,140 C184,172 155,190 125,182" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
+          <path d="M100,100 C65,80 30,90 20,125 C11,155 35,180 70,175" fill="none" stroke="#4CC9F0" stroke-width="6" stroke-linecap="round" opacity="0.7"/>
+        </svg>
+      </div>
+      <div class="dash-side">
+        <div class="metric">
+          <div class="row"><span>Estimated category</span><b>Cat 3 · Major</b></div>
+          <div class="row"><span>Sustained winds</span><b>178 km/h</b></div>
+        </div>
+        <div class="metric">
+          <div class="row"><span>24h intensification probability</span><b>68%</b></div>
+          <div class="bar"><i style="width:68%"></i></div>
+        </div>
+        <div class="metric">
+          <div class="row"><span>Track confidence (72h)</span><b>81%</b></div>
+          <div class="bar"><i style="width:81%"></i></div>
+        </div>
+        <div class="metric">
+          <div class="row"><span>Landfall window</span><b>~54 hours</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <section id="stack">
+    <div class="section-head">
+      <div class="kicker">Built with</div>
+      <h2>The stack under the hood</h2>
+    </div>
+    <div class="stack-row">
+      <span class="pill">PyTorch</span>
+      <span class="pill">CNN + ConvLSTM</span>
+      <span class="pill">Vision Transformer (temporal)</span>
+      <span class="pill">NOAA GOES</span>
+      <span class="pill">INSAT-3D</span>
+      <span class="pill">Himawari-9</span>
+      <span class="pill">ASCAT scatterometer</span>
+      <span class="pill">xarray / rasterio</span>
+      <span class="pill">Google Earth Engine</span>
+    </div>
+  </section>
+
+</main>
+
+<!-- ================= LIVE MAP OVERLAY (Zoom Earth-style) ================= -->
+<div id="liveMapOverlay">
+  <div id="map"></div>
+
+  <div class="map-topbar">
+    <div class="map-brand">
+      <span class="map-brand-mark"></span> StormEye Live
+      <span id="dataSourceBadge" class="mono" style="font-size:0.66rem; margin-left:6px; padding:2px 8px; border:1px solid var(--line); border-radius:100px;">DEMO DATA</span>
+      <button class="close-map" id="closeMapBtn" type="button">Close ✕</button>
+    </div>
+    <div class="search-box">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="stormSearch" placeholder="Search active storms…" autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
+    </div>
+    <div style="width:1px"></div>
+  </div>
+
+  <button class="panel-collapse" id="panelCollapseBtn" type="button">☰</button>
+
+  <div class="layers-panel" id="layersPanel">
+    <h4>Map layers</h4>
+    <div class="layer-row" data-layer="ir">
+      <div class="lbl"><span class="swatch" style="background:#4CC9F0"></span>IR satellite glow</div>
+      <div class="lyr-toggle on"></div>
+    </div>
+    <div class="layer-row" data-layer="tracks">
+      <div class="lbl"><span class="swatch" style="background:#FF7A59"></span>Storm tracks</div>
+      <div class="lyr-toggle on"></div>
+    </div>
+    <div class="layer-row" data-layer="wind">
+      <div class="lbl"><span class="swatch" style="background:#F4D35E"></span>Wind streamlines</div>
+      <div class="lyr-toggle"></div>
+    </div>
+    <div class="layer-row" data-layer="fire">
+      <div class="lbl"><span class="swatch" style="background:#E63946"></span>Wildfire heat points</div>
+      <div class="lyr-toggle"></div>
+    </div>
+  </div>
+
+  <div class="storms-panel">
+    <div class="head"><h3>Active storms</h3><span class="count" id="stormCount">0</span></div>
+    <div class="storms-list" id="stormsList"></div>
+  </div>
+
+  <div class="zoom-ctl">
+    <button id="zoomInBtn" type="button">+</button>
+    <button id="zoomOutBtn" type="button">–</button>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:#4CC9F0"></i>TD/TS</span>
+    <span><i style="background:#F4D35E"></i>Cat 1–2</span>
+    <span><i style="background:#FF7A59"></i>Cat 3</span>
+    <span><i style="background:#E63946"></i>Cat 4–5</span>
+  </div>
+
+  <div class="timeline-bar">
+    <button class="play-btn" id="playBtn" type="button">▶</button>
+    <div class="timeline-track" id="timelineTrack"><div class="timeline-fill" id="timelineFill"></div></div>
+    <span class="timestamp" id="timestampLbl">Today · 14:30 UTC</span>
+  </div>
+
+  <div class="map-toast" id="mapToast">Storm selected</div>
+</div>
+
+<footer class="wrap">
+  <span>StormEye AI — a concept system for cyclone detection, classification & prediction.</span>
+  <span>Built for research & early-warning use cases.</span>
+</footer>
+
+<script>
+  // data source tabs
+  const dataInfo = [
+    { title: "Why infrared carries the most weight", body: "It's the only channel available at every timestep, day and night, on a consistent schedule — so it anchors the time series the model learns from. Every other source corrects it in a different way: microwave reveals the real eyewall when cloud tops hide it, water vapor flags whether the storm has fuel, and scatterometer winds keep the intensity estimate honest." },
+    { title: "What water vapor adds", body: "It shows moisture in the mid-to-upper troposphere well outside the storm's core. Dry air intruding from one side is often the first sign a storm is about to weaken — a pattern the infrared channel alone can't show." },
+    { title: "What microwave adds", body: "Cloud tops can hide a storm's real structure from infrared. Microwave sensors see through that shield to the rain bands and eyewall underneath, which is often the earliest confirmation that a system has actually closed off circulation." },
+    { title: "What scatterometer winds add", body: "Radar backscatter off the ocean surface gives a direct wind-speed reading, rather than an estimate inferred from cloud patterns. It's the main way the model checks its own intensity guess against something closer to ground truth." },
+    { title: "What visible imagery adds", body: "During daylight passes, visible imagery shows finer texture in the spiral banding than infrared alone — useful for sharpening the eye-detection step and confirming symmetry." }
+  ];
+  const dataCards = document.querySelectorAll('.data-card');
+  const dataDetail = document.getElementById('dataDetail');
+  dataCards.forEach(card => {
+    card.addEventListener('click', () => {
+      dataCards.forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      const info = dataInfo[card.dataset.i];
+      dataDetail.querySelector('h4').textContent = info.title;
+      dataDetail.querySelector('p').textContent = info.body;
+    });
+  });
+
+  // classification categories
+  const categories = [
+    { label: "TD", name: "Tropical Depression", wind: "< 63 km/h", color: "#4CC9F0", note: "The model looks for a closed low-level circulation with disorganized convection — the earliest stage worth flagging at all." },
+    { label: "TS", name: "Tropical Storm", wind: "63–118 km/h", color: "#57D9C4", note: "Banding starts organizing around a defined center. This is usually the point a system gets a name." },
+    { label: "1", name: "Category 1", wind: "119–153 km/h", color: "#F4D35E", note: "Convective banding tightens and an eye may start to appear intermittently in infrared." },
+    { label: "2", name: "Category 2", wind: "154–177 km/h", color: "#F2A65A", note: "A more consistent eye and symmetric eyewall — the structural cues the classifier weighs most heavily." },
+    { label: "3", name: "Category 3 · Major", wind: "178–208 km/h", color: "#FF7A59", note: "A clear, warm eye with a well-defined eyewall. Crosses into 'major hurricane' territory." },
+    { label: "4", name: "Category 4", wind: "209–251 km/h", color: "#FF5A5F", note: "Very high symmetry and a compact, intense eye — intensification-probability tends to spike near here." },
+    { label: "5", name: "Category 5", wind: "252+ km/h", color: "#E63946", note: "The most extreme structural signature the classifier can assign — small, intensely warm eye, near-perfect symmetry." }
+  ];
+  const catGrid = document.getElementById('catGrid');
+  const catPanel = document.getElementById('catPanel');
+
+  function renderPanel(i){
+    const c = categories[i];
+    catPanel.style.setProperty('--intensity', c.color);
+    catPanel.innerHTML = `
+      <div class="swatch"></div>
+      <div>
+        <h4>${c.name}</h4>
+        <div class="wind">${c.wind} sustained winds</div>
+        <p>${c.note}</p>
+      </div>`;
+  }
+
+  categories.forEach((c, i) => {
+    const btn = document.createElement('div');
+    btn.className = 'cat-btn' + (i === 4 ? ' active' : '');
+    btn.style.setProperty('--intensity', c.color);
+    btn.innerHTML = `<b>${c.label}</b>${c.name.replace('Category ', 'Cat ')}`;
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderPanel(i);
+    });
+    catGrid.appendChild(btn);
+  });
+  renderPanel(4);
+</script>
+
+<!-- ================= LIVE MAP LOGIC (Zoom Earth-style) ================= -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+(function(){
+  // Point this at your running backend (Node on :5000 or FastAPI on :5000 — same port by default).
+  // No API key required: the backend proxies NHC's free public feed.
+  const API_BASE = 'http://localhost:5000';
+  const FETCH_TIMEOUT_MS = 6000;
+
+  const CAT_COLOR = { TD:'#4CC9F0', TS:'#57D9C4', 1:'#F4D35E', 2:'#F2A65A', 3:'#FF7A59', 4:'#FF5A5F', 5:'#E63946' };
+  const CAT_LABEL = { TD:'Trop. Depression', TS:'Trop. Storm', 1:'Category 1', 2:'Category 2', 3:'Category 3', 4:'Category 4', 5:'Category 5' };
+
+  // Fallback demo storms — used only if the live NHC feed can't be reached,
+  // or if there are genuinely no active storms right now (common outside hurricane season).
+  const DEMO_STORMS = [
+    { id:'aletta', name:'Aletta', lat:16.2, lng:-138.4, cat:3, wind:178, pressure:958, basin:'E. Pacific',
+      track:[[9,-121],[11,-126],[13,-131],[16.2,-138.4]], forecast:[[16.2,-138.4],[18.5,-145],[21,-151]] },
+    { id:'biru', name:'Biru', lat:15.6, lng:88.1, cat:1, wind:130, pressure:985, basin:'Bay of Bengal',
+      track:[[11,84],[13,86],[15.6,88.1]], forecast:[[15.6,88.1],[17.8,89.5],[20,90.8]] },
+    { id:'kavya', name:'Kavya', lat:14.8, lng:64.5, cat:'TS', wind:95, pressure:997, basin:'Arabian Sea',
+      track:[[10.5,60],[12.4,62.2],[14.8,64.5]], forecast:[[14.8,64.5],[16.2,66.9],[17,69.6]] },
+    { id:'devendra', name:'Devendra', lat:24.1, lng:-58.3, cat:4, wind:222, pressure:939, basin:'Atlantic',
+      track:[[17,-44],[19.8,-49],[21.6,-54],[24.1,-58.3]], forecast:[[24.1,-58.3],[26.9,-63],[29.4,-67.8]] },
+    { id:'nissa', name:'Nissa', lat:-18.4, lng:142.9, cat:'TD', wind:55, pressure:1002, basin:'Coral Sea',
+      track:[[-15.2,138.5],[-16.8,140.6],[-18.4,142.9]], forecast:[[-18.4,142.9],[-19.9,145.1]] }
+  ];
+
+  let storms = [];
+  let dataSource = 'demo'; // 'live' | 'demo'
+  let map, layerGroups = { ir:L.layerGroup(), tracks:L.layerGroup(), wind:L.layerGroup(), fire:L.layerGroup() };
+  let markers = {}, activeId = null, mapInitialized = false;
+
+  async function loadStorms(){
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      const res = await fetch(`${API_BASE}/api/storms`, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error(`backend returned ${res.status}`);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'backend reported an error');
+
+      if (json.storms && json.storms.length > 0){
+        storms = json.storms.map(s => ({
+          ...s,
+          track: [[s.lat, s.lng]],      // NHC's live feed gives current position only —
+          forecast: [[s.lat, s.lng]]    // full track/cone needs the separate GIS shapefiles.
+        }));
+        dataSource = 'live';
+        showToast(`Live NHC data · ${storms.length} active storm${storms.length===1?'':'s'}`);
+      } else {
+        storms = DEMO_STORMS;
+        dataSource = 'demo';
+        showToast('No active NHC storms right now — showing demo storms');
+      }
+    } catch (err){
+      console.warn('StormEye: falling back to demo storms —', err.message);
+      storms = DEMO_STORMS;
+      dataSource = 'demo';
+      showToast('Backend unreachable — showing demo storms');
+    }
+    updateSourceBadge();
+  }
+
+  function updateSourceBadge(){
+    const el = document.getElementById('dataSourceBadge');
+    if (!el) return;
+    el.textContent = dataSource === 'live' ? 'LIVE · NHC' : 'DEMO DATA';
+    el.style.color = dataSource === 'live' ? '#4CC9F0' : '#93A0CC';
+  }
+
+  function stormMarkerIcon(color){
+    return L.divIcon({
+      className:'', iconSize:[34,34], iconAnchor:[17,17],
+      html:`<div class="storm-marker" style="--m-color:${color}">
+              <div class="pulse"></div>
+              <svg viewBox="0 0 34 34"><path d="M17,17 C22,13 28,15 29,21 C30,26 25,29 20,28" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/></svg>
+              <div class="core"></div>
+            </div>`
+    });
+  }
+
+  async function initMap(){
+    if (mapInitialized) return;
+    mapInitialized = true; // guard against double-init from rapid clicks
+
+    map = L.map('map', { zoomControl:false, worldCopyJump:true, minZoom:2, maxZoom:9 }).setView([15, 60], 3);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:19
+    }).addTo(map);
+
+    await loadStorms();
+    plotStorms();
+
+    layerGroups.ir.addTo(map);
+    layerGroups.tracks.addTo(map);
+    renderStormsList();
+  }
+
+  function plotStorms(){
+    storms.forEach(s => {
+      const color = CAT_COLOR[s.cat] || CAT_COLOR.TS;
+      const marker = L.marker([s.lat, s.lng], { icon: stormMarkerIcon(color) }).addTo(map);
+      const advisory = s.advisoryUrl ? `<br><a href="${s.advisoryUrl}" target="_blank" rel="noopener" style="color:var(--cyan)">Full NHC advisory ↗</a>` : '';
+      marker.bindPopup(`<b>${s.name}</b> · ${CAT_LABEL[s.cat] || s.cat}<br>${s.wind} km/h sustained · ${s.pressure ?? '–'} hPa<br><span class="mono" style="color:var(--muted)">${s.basin}</span>${advisory}`);
+      marker.on('click', () => selectStorm(s.id));
+      markers[s.id] = marker;
+
+      if (s.track && s.track.length > 1) L.polyline(s.track, { color, weight:2.5, opacity:0.85 }).addTo(layerGroups.tracks);
+      if (s.forecast && s.forecast.length > 1) L.polyline(s.forecast, { color, weight:2, opacity:0.5, dashArray:'6,6' }).addTo(layerGroups.tracks);
+      L.circle([s.lat, s.lng], { radius: 260000, color, fillColor:color, fillOpacity:0.12, weight:0 }).addTo(layerGroups.ir);
+      L.circle([s.lat, s.lng], { radius: 140000, color, fillColor:color, fillOpacity:0.18, weight:0 }).addTo(layerGroups.ir);
+    });
+
+    // decorative wind streamline ticks
+    const windSpots = [[5,-150],[20,-100],[0,70],[25,50],[-10,120],[35,-30]];
+    windSpots.forEach(([lat,lng]) => {
+      L.marker([lat,lng], { icon: L.divIcon({ className:'', html:`<div style="color:#F4D35E;font-size:14px;opacity:0.75;transform:rotate(${Math.random()*360}deg)">➤</div>`, iconSize:[14,14] }) }).addTo(layerGroups.wind);
+    });
+
+    // decorative wildfire heat points
+    const fireSpots = [[36.5,-119.8],[-33.9,150.1],[-3.4,-62.2],[40.1,22.9]];
+    fireSpots.forEach(([lat,lng]) => {
+      L.circleMarker([lat,lng], { radius:4, color:'#E63946', fillColor:'#E63946', fillOpacity:0.9, weight:0 }).addTo(layerGroups.fire);
+    });
+  }
+
+  function renderStormsList(){
+    const list = document.getElementById('stormsList');
+    document.getElementById('stormCount').textContent = storms.length;
+    list.innerHTML = storms.map(s => `
+      <div class="storm-card" data-id="${s.id}">
+        <div class="top">
+          <span class="name">${s.name}</span>
+          <span class="cat-tag" style="background:${CAT_COLOR[s.cat]}">${typeof s.cat === 'number' ? 'CAT '+s.cat : s.cat}</span>
+        </div>
+        <div class="meta">${s.basin} · ${s.wind} km/h · ${s.pressure} hPa</div>
+      </div>`).join('');
+    list.querySelectorAll('.storm-card').forEach(card => {
+      card.addEventListener('click', () => selectStorm(card.dataset.id));
+    });
+  }
+
+  function selectStorm(id){
+    activeId = id;
+    const s = storms.find(x => x.id === id);
+    if (!s) return;
+    map.flyTo([s.lat, s.lng], 6, { duration:0.9 });
+    markers[id].openPopup();
+    document.querySelectorAll('.storm-card').forEach(c => c.classList.toggle('active', c.dataset.id === id));
+    showToast(`Tracking ${s.name} · ${CAT_LABEL[s.cat]}`);
+  }
+
+  function showToast(msg){
+    const t = document.getElementById('mapToast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  // layer toggles
+  document.querySelectorAll('.layer-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const key = row.dataset.layer;
+      const toggle = row.querySelector('.lyr-toggle');
+      const isOn = toggle.classList.toggle('on');
+      if (!map) return;
+      if (isOn) map.addLayer(layerGroups[key]); else map.removeLayer(layerGroups[key]);
+    });
+  });
+
+  // zoom controls
+  document.getElementById('zoomInBtn').addEventListener('click', () => map && map.zoomIn());
+  document.getElementById('zoomOutBtn').addEventListener('click', () => map && map.zoomOut());
+
+  // panel collapse (mobile)
+  document.getElementById('panelCollapseBtn').addEventListener('click', () => {
+    document.getElementById('layersPanel').classList.toggle('open');
+  });
+
+  // search
+  const searchInput = document.getElementById('stormSearch');
+  const searchResults = document.getElementById('searchResults');
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q){ searchResults.classList.remove('show'); return; }
+    const matches = storms.filter(s => s.name.toLowerCase().includes(q) || s.basin.toLowerCase().includes(q));
+    if (!matches.length){ searchResults.innerHTML = `<div style="color:var(--muted)">No storms match “${searchInput.value}”</div>`; }
+    else {
+      searchResults.innerHTML = matches.map(s => `<div data-id="${s.id}">${s.name} · ${s.basin}</div>`).join('');
+      searchResults.querySelectorAll('div[data-id]').forEach(el => {
+        el.addEventListener('click', () => { selectStorm(el.dataset.id); searchResults.classList.remove('show'); searchInput.value = ''; });
+      });
+    }
+    searchResults.classList.add('show');
+  });
+
+  // fake live timeline (loops through recent satellite passes, cosmetic)
+  const frames = ['−1h50m','−1h20m','−50m','−20m','Now'];
+  let frameIdx = frames.length - 1, playing = false, playTimer = null;
+  const fill = document.getElementById('timelineFill');
+  const stamp = document.getElementById('timestampLbl');
+  function renderFrame(){
+    fill.style.width = ((frameIdx+1)/frames.length*100) + '%';
+    stamp.textContent = frames[frameIdx] === 'Now' ? 'Live · latest pass' : frames[frameIdx] + ' from now';
+  }
+  document.getElementById('playBtn').addEventListener('click', function(){
+    playing = !playing;
+    this.textContent = playing ? '⏸' : '▶';
+    if (playing){
+      playTimer = setInterval(() => {
+        frameIdx = (frameIdx + 1) % frames.length;
+        renderFrame();
+      }, 900);
+    } else {
+      clearInterval(playTimer);
+    }
+  });
+  document.getElementById('timelineTrack').addEventListener('click', function(e){
+    const pct = (e.clientX - this.getBoundingClientRect().left) / this.clientWidth;
+    frameIdx = Math.min(frames.length-1, Math.max(0, Math.round(pct * (frames.length-1))));
+    renderFrame();
+  });
+  renderFrame();
+
+  // open / close overlay
+  function openMap(){
+    document.getElementById('liveMapOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    initMap();
+    setTimeout(() => map && map.invalidateSize(), 60);
+  }
+  function closeMap(){
+    document.getElementById('liveMapOverlay').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  document.getElementById('openMapBtn').addEventListener('click', openMap);
+  document.getElementById('openMapBtnHero').addEventListener('click', openMap);
+  document.getElementById('closeMapBtn').addEventListener('click', closeMap);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMap(); });
+})();
+</script>
+
+</body>
+</html>
